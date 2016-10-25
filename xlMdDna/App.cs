@@ -30,7 +30,7 @@ namespace xlMdDna {
 	using System.Windows.Forms;
 
 	public class App {
-		private static Version AppVer = new Version(0, 1, 0);
+		private static Version AppVer = new Version(0, 2, 0);
 
 		[ExcelCommand(MenuName = "xlMdDna", MenuText = "About")]
 		public static void About() {

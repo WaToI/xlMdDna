@@ -2,13 +2,21 @@
 ## Excel mermaid-String to Diagram
 
 ### Usage
+1. [xll 32bit※](https://github.com/WaToI/xlMdDna/blob/master/xlMdDna-AddIn-packed.xll) download&open xll in Excel
+- cell A1:  graph LR   
+- cell A2:  HelloWorld  
+- cell c3: =mermaid(A1:A2)
+- autoOpen Live-Preview-window
+※ if yourExcel is 64bit [xll 64bit](https://github.com/WaToI/xlMdDna/blob/master/xlMdDna-AddIn64-packed.xll)
 
+
+### mermaid
 ```
-graph TD;  
- 　A-->B;  
- 　A-->C;  
- 　B-->D;  
- 　C-->D;  
+graph TD  
+ 　A-->B  
+ 　A-->C  
+ 　B-->D  
+ 　C-->D  
 ```
 
 ```
