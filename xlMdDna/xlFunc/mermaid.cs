@@ -6,14 +6,22 @@
 	using System.Drawing;
 	using System.IO;
 	using System.Text;
+	using System.Text.RegularExpressions;
 	using System.Windows.Forms;
 
-	public static class MarkDown {
+	public static class xlMermaid {
+		private static DirectoryInfo MyDoc { get { return new DirectoryInfo(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments)); } }
 		private static dynamic xl = ExcelDnaUtil.Application;
 		private static bool initEnd = false;
 		private static Form wind;
 		private static WebBrowser web;
-		private static DirectoryInfo MyDoc { get { return new DirectoryInfo(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments)); } }
+		private static int width = 400 * 2;
+		private static int height = 400 * 2;
+		private static bool firstTime = true;
+		private static bool secondTime = true;
+		private static dynamic lastStyle = "zoom:300%;";
+		private static dynamic lastPos = null;
+		private static string md;
 
 		private static string defhtml = @"
 <!DOCTYPE html>
@@ -38,28 +46,89 @@ mermaid.initialize({flowchart:{htmlLabels:false}})
 
 		[ExcelFunction(Name = "Mermaid", Description = "About xlMdDna")]
 		public static string Mermaid(dynamic[,] args) {
+			initEnd = init();
+
 			var buf = getArgsString(args);
-			var md = string.Join("\n", buf);
-			getPreviewWindow(md.Replace("\u00A0", " "));
+			md = string.Join("\n", buf).Replace("\u00A0", " ");
 			try {
-				//web.ScrollBarsEnabled = true;
-				wind.FormBorderStyle = FormBorderStyle.Sizable;
-				wind.Show();
-				wind.Activate();
+				getPreviewWindow(md);
 			}
-			finally { }
+			catch (Exception ex) {
+				Clipboard.SetText($"Err: mermaidFail\n{ex.Message}");
+			}
 
 			return "OK";
+		}
+
+		private static bool init() {
+			if (!initEnd) {
+				wind = new Form();
+				wind.Width = width;
+				wind.Height = height;
+				wind.AutoScaleMode = AutoScaleMode.Font;
+				//wind.AutoSize = true;
+				wind.BackColor = Color.White;
+				wind.TopMost = true;
+				web = new WebBrowser();
+				web.Visible = true;
+				web.Dock = DockStyle.Fill;
+				wind.Controls.Add(web);
+				wind.Show();
+
+				//wind.SizeChanged += (s, e) => { firstTime = false; };
+				//wind.Move += (s, e) => { firstTime = false; };
+				//web.ClientSizeChanged += (s, e) => { firstTime = false; };
+				//web.SizeChanged += (s, e) => { firstTime = false; };
+				//web.DocumentCompleted += (s, e) => {
+				//	if (firstTime) {
+				//		firstTime = false;
+				//		var x = (int)(web.Document.Window.Size.Width / 2 * 1.5);
+				//		var y = 0;// (int)(web.Document.Window.Size.Height/2*.5);
+				//		web.Document.Body.Style = "zoom:300%;";
+				//		web.Document.Window.ScrollTo(x, y);
+				//		getPreviewWindow(md);
+				//	}else if (secondTime) {
+				//		secondTime = false;
+				//		var x = (int)(web.Document.Window.Size.Width / 2 * 1.5);
+				//		var y = 0;// (int)(web.Document.Window.Size.Height/2*.5);
+				//		web.Document.Body.Style = "zoom:300%;";
+				//		web.Document.Window.ScrollTo(x, y);
+				//		getPreviewWindow(md);
+				//	}
+				//};
+
+				wind.Closing += (s, e) => {
+					lastStyle = web.Document.Body.Style;
+					windCapture();
+					e.Cancel = true;
+					wind.Hide();
+				};
+			}
+			if (!wind.Visible) {
+				wind.Show();
+			}
+			wind.FormBorderStyle = FormBorderStyle.Sizable;
+			web.ScrollBarsEnabled = true;
+
+			return true;
 		}
 
 		private static IEnumerable<string> getArgsString(object[,] args) {
 			var yLen = args.GetLength(0);
 			var xLen = args.GetLength(1);
+			var line = "";
+			var str = "";
+			var rgx = new Regex(@"^(\(|\[|\{)");
 			for (var y = 0; y < yLen; y++) {
-				var line = "";
+				line = "";
 				for (var x = 0; x < xLen; x++) {
-					if (args[y, x].ToString() != "ExcelDna.Integration.ExcelEmpty")
-						line += args[y, x].ToString();
+					try {
+						if ((str = args[y, x].ToString()) != "ExcelDna.Integration.ExcelEmpty")
+							line += (rgx.IsMatch(str) ? "" : " ") + str;
+					}
+					catch (Exception ex) {
+						Clipboard.SetText($"Err: ReadCellFail\n{ex.Message}\n{args[y, x]}");
+					}
 				}
 				yield return line;
 			}
@@ -73,29 +142,13 @@ mermaid.initialize({flowchart:{htmlLabels:false}})
 			return utf8Enc.GetString(bytesData);
 		}
 
-		private static bool init() {
-			if (!initEnd) {
-				wind = new Form();
-				wind.BackColor = Color.White;
-				web = new WebBrowser();
-				web.Visible = true;
-				web.Dock = DockStyle.Fill;
-				wind.Controls.Add(web);
-				wind.Closing += (s, e) => {
-					windCapture();
-					e.Cancel = true;
-					wind.Hide();
-				};
-			}
-			return true;
-		}
-
 		private static void windCapture(string fileName = "preview.png") {
 			try {
-				saveSvg();
 				wind.FormBorderStyle = FormBorderStyle.None;
-				//web.ScrollBarsEnabled = false;
-				wind.Activate();
+				web.ScrollBarsEnabled = false;
+				lastPos = web.Document.Window.Position;
+				//wind.Activate();
+				saveSvg();
 				SendKeys.SendWait("%{PRTSC}");
 				var bmp = (Bitmap)Clipboard.GetImage();
 				bmp.MakeTransparent(Color.White);
@@ -121,14 +174,12 @@ mermaid.initialize({flowchart:{htmlLabels:false}})
 		}
 
 		private static Form getPreviewWindow(string md) {
-			initEnd = init();
 			web.DocumentText =
 				defhtml
 					.Replace("{MMSTR}", md)
 			//.Replace("{MMCSS}", mmcss)
 			//.Replace("{MMJS}", mmjs)
 			;
-
 			return wind;
 		}
 	}
