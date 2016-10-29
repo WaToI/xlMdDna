@@ -11,6 +11,7 @@
 
 	public static class xlMermaid {
 		private static DirectoryInfo MyDoc { get { return new DirectoryInfo(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments)); } }
+		private static DirectoryInfo saveDir { get { return new DirectoryInfo($@"{MyDoc.FullName}\xlMdDna"); } } 
 		private static dynamic xl = ExcelDnaUtil.Application;
 		private static bool initEnd = false;
 		private static Form wind;
@@ -18,7 +19,6 @@
 		private static int width = 400 * 2;
 		private static int height = 400 * 2;
 		private static bool firstTime = true;
-		private static bool secondTime = true;
 		private static dynamic lastStyle = "zoom:300%;";
 		private static dynamic lastPos = null;
 		private static string md;
@@ -62,6 +62,8 @@ mermaid.initialize({flowchart:{htmlLabels:false}})
 
 		private static bool init() {
 			if (!initEnd) {
+				if (!saveDir.Exists)
+					saveDir.Create();
 				wind = new Form();
 				wind.Width = width;
 				wind.Height = height;
@@ -75,33 +77,31 @@ mermaid.initialize({flowchart:{htmlLabels:false}})
 				wind.Controls.Add(web);
 				wind.Show();
 
-				//wind.SizeChanged += (s, e) => { firstTime = false; };
-				//wind.Move += (s, e) => { firstTime = false; };
-				//web.ClientSizeChanged += (s, e) => { firstTime = false; };
-				//web.SizeChanged += (s, e) => { firstTime = false; };
-				//web.DocumentCompleted += (s, e) => {
-				//	if (firstTime) {
-				//		firstTime = false;
-				//		var x = (int)(web.Document.Window.Size.Width / 2 * 1.5);
-				//		var y = 0;// (int)(web.Document.Window.Size.Height/2*.5);
-				//		web.Document.Body.Style = "zoom:300%;";
-				//		web.Document.Window.ScrollTo(x, y);
-				//		getPreviewWindow(md);
-				//	}else if (secondTime) {
-				//		secondTime = false;
-				//		var x = (int)(web.Document.Window.Size.Width / 2 * 1.5);
-				//		var y = 0;// (int)(web.Document.Window.Size.Height/2*.5);
-				//		web.Document.Body.Style = "zoom:300%;";
-				//		web.Document.Window.ScrollTo(x, y);
-				//		getPreviewWindow(md);
-				//	}
-				//};
+				web.DocumentCompleted += (s, e) => {
+					if (firstTime) {
+						firstTime = false;
+						var x = (int)(web.Document.Window.Size.Width / 2 * 2);
+						var y = 0;// (int)(web.Document.Window.Size.Height/2*.5);
+						web.Document.Body.Style = "zoom:350%;";
+						web.Document.Window.ScrollTo(x, y);
+						//getPreviewWindow(md);
+					}
+				};
 
-				wind.Closing += (s, e) => {
-					lastStyle = web.Document.Body.Style;
-					windCapture();
-					e.Cancel = true;
-					wind.Hide();
+				web.PreviewKeyDown += (s, e) => {
+					if (e.KeyData == Keys.Enter) {
+						windCapture();
+						wind.Close();
+						web.Dispose();
+					}
+				};
+
+				wind.FormClosing += (s, e) => {
+					firstTime = true;
+					initEnd = false;
+					//windCapture();
+					//e.Cancel = true;
+					//wind.Hide();
 				};
 			}
 			if (!wind.Visible) {
@@ -134,10 +134,9 @@ mermaid.initialize({flowchart:{htmlLabels:false}})
 			}
 		}
 
-		private static string sjisToUtf(string sjisstr) {
+		private static string sjisToUtf(string sjisStr) {
 			Encoding sjisEnc = Encoding.GetEncoding("Shift_JIS");
-			//string sjisstr = sjisEnc.GetString(loaddata);
-			byte[] bytesData = System.Text.Encoding.UTF8.GetBytes(sjisstr);
+			byte[] bytesData = System.Text.Encoding.UTF8.GetBytes(sjisStr);
 			Encoding utf8Enc = Encoding.GetEncoding("UTF-8");
 			return utf8Enc.GetString(bytesData);
 		}
@@ -153,24 +152,39 @@ mermaid.initialize({flowchart:{htmlLabels:false}})
 				var bmp = (Bitmap)Clipboard.GetImage();
 				bmp.MakeTransparent(Color.White);
 				//Clipboard.SetImage(bmp);
-				var path = $"{MyDoc.FullName}/{fileName}";
+				var path = $"{saveDir.FullName}/{fileName}";
 				bmp.Save(path);
 				//xl.ActiveSheet.Paste();
 				xl.ActiveSheet.Shapes.AddPicture(path, 0, -1, 0, 0, bmp.Width, bmp.Height);
+				wind.FormBorderStyle = FormBorderStyle.Sizable;
+				web.ScrollBarsEnabled = true;
 			}
 			catch (Exception ex) {
 				MessageBox.Show($"Err: {ex.Message}");
 			}
 		}
 
+		static string getSvg() {
+			var pv = web.Document.GetElementById("preview");
+			var svgStr = pv.InnerHtml;
+			var dq = "\"";
+			var rgx0 = new Regex($@"[^\s]*={dq}{dq}");
+			var rgx1 = new Regex($@" *NS\d*:ns\d*:");
+			var rgx2 = new Regex($@"NS[^>]*(/*)>");
+			var rgx3 = new Regex($@"{dq}(space=)");
+			svgStr = rgx0.Replace(svgStr, "");
+			svgStr = rgx1.Replace(svgStr, "");
+			svgStr = rgx2.Replace(svgStr, "$1>");
+			svgStr = rgx3.Replace(svgStr, $"{dq} xmlns:$1");
+			svgStr = svgStr.Replace($@"<tspan x={dq}1{dq} dy={dq}1em{dq} xmlns:space={dq}preserve{dq}  ><", "<");
+			svgStr = svgStr.Replace($@"xml:space={dq}preserve{dq}", "");
+			svgStr = svgStr.Replace($@"xmlns:space={dq}preserve{dq}","");
+			Clipboard.SetText(svgStr);
+			return svgStr;
+		}
+
 		private static void saveSvg(string fileName = "preview.svg") {
-			try {
-				var pv = web.Document.GetElementById("preview");
-				var svgStr = pv.InnerHtml;
-				Clipboard.SetText(svgStr);
-				File.WriteAllText($"{MyDoc.FullName}/{fileName}", svgStr);
-			}
-			catch (Exception) { }
+			File.WriteAllText($"{saveDir.FullName}/{fileName}", getSvg());
 		}
 
 		private static Form getPreviewWindow(string md) {
