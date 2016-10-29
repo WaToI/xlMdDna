@@ -1,6 +1,8 @@
 ﻿namespace xlMdDna {
 
 	using ExcelDna.Integration;
+	using Microsoft.Office.Core;
+	using Microsoft.Office.Interop.Excel;
 	using System;
 	using System.Collections.Generic;
 	using System.Drawing;
@@ -11,8 +13,13 @@
 
 	public static class xlMermaid {
 		private static DirectoryInfo MyDoc { get { return new DirectoryInfo(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments)); } }
-		private static DirectoryInfo saveDir { get { return new DirectoryInfo($@"{MyDoc.FullName}\xlMdDna"); } } 
-		private static dynamic xl = ExcelDnaUtil.Application;
+		private static DirectoryInfo saveDir { get { return new DirectoryInfo($@"{MyDoc.FullName}\xlMdDna"); } }
+		private static Microsoft.Office.Interop.Excel.Application xl = (Microsoft.Office.Interop.Excel.Application)ExcelDnaUtil.Application;
+		private static Workbook wb;
+		private static Worksheet ws;
+		private static Range rng;
+		private static ExcelReference caller;
+		private static string shapName = "";
 		private static bool initEnd = false;
 		private static Form wind;
 		private static WebBrowser web;
@@ -43,18 +50,24 @@
 </body>
 </html>
 ";
-		static string mmieop { get { return @"
+
+		private static string mmieop { get { return @"
 mermaid.initialize({flowchart:{htmlLabels:false}});
 "; } }
 
 		[ExcelFunction(Name = "Mermaid", Description = "About xlMdDna")]
 		public static string Mermaid(dynamic[,] args) {
 			initEnd = init();
+			caller = XlCall.Excel(XlCall.xlfCaller) as ExcelReference;
+			wb = (Workbook)xl.ActiveWorkbook;
+			ws = (Worksheet)xl.ActiveSheet;
+			rng = (Range)ws.Cells[caller.RowFirst + 1, caller.ColumnFirst + 1];
+			shapName = $"{wb.Name}_{ws.Name}_{rng.Address[false,false]}";
 
 			var buf = getArgsString(args);
 			md = string.Join("\n", buf).Replace("\u00A0", " ");
 			try {
-				getPreviewWindow(md.Trim());
+				getPreviewWindow(md.Trim(), $"{shapName}.html");
 			}
 			catch (Exception ex) {
 				Clipboard.SetText($"Err: mermaidFail\n{ex.Message}");
@@ -68,6 +81,7 @@ mermaid.initialize({flowchart:{htmlLabels:false}});
 			if (!initEnd) {
 				if (!saveDir.Exists)
 					saveDir.Create();
+
 				wind = new Form();
 				wind.Text = "press {Enter} to Save";
 				wind.Width = width;
@@ -145,21 +159,32 @@ mermaid.initialize({flowchart:{htmlLabels:false}});
 			return utf8Enc.GetString(bytesData);
 		}
 
-		private static void windCapture(string fileName = "preview.png") {
+		private static void windCapture() {
 			try {
 				wind.FormBorderStyle = FormBorderStyle.None;
 				web.ScrollBarsEnabled = false;
 				lastPos = web.Document.Window.Position;
 				//wind.Activate();
-				saveSvg();
+				saveSvg(shapName + ".svg");
 				SendKeys.SendWait("%{PRTSC}");
 				var bmp = (Bitmap)Clipboard.GetImage();
 				bmp.MakeTransparent(Color.White);
 				//Clipboard.SetImage(bmp);
-				var path = $"{saveDir.FullName}/{fileName}";
+				var path = $"{saveDir.FullName}/{shapName}.png";
 				bmp.Save(path);
 				//xl.ActiveSheet.Paste();
-				xl.ActiveSheet.Shapes.AddPicture(path, 0, -1, 0, 0, bmp.Width, bmp.Height);
+				try {
+					var tshap = ws.Shapes.Item(shapName);
+					tshap.Delete();
+				}
+				catch (Exception) { }
+				try {
+					var shap = ws.Shapes.AddPicture(path, MsoTriState.msoFalse, MsoTriState.msoCTrue, 0f, 0f, bmp.Width, bmp.Height);
+					shap.Name = shapName;
+					shap.Left = float.Parse($"{rng.Offset[0, 1].Left}");
+					shap.Top = float.Parse($"{rng.Top}");
+				}
+				catch (Exception) { }
 				wind.FormBorderStyle = FormBorderStyle.Sizable;
 				web.ScrollBarsEnabled = true;
 			}
@@ -168,17 +193,18 @@ mermaid.initialize({flowchart:{htmlLabels:false}});
 			}
 		}
 
-		static string getSvg() {
+		private static string getSvg() {
 			var pv = web.Document.GetElementById("preview");
 			var svgStr = pv.InnerHtml;
 			var dq = "\"";
-			svgStr = Regex.Replace($@"[^\s]*={dq}{dq}", svgStr, "");
-			svgStr = Regex.Replace($@" *NS\d*:ns\d*:" , svgStr, "");
-			svgStr = Regex.Replace($@"NS[^>]*(/*)>"   , svgStr, "$1>");
-			svgStr = Regex.Replace($@"{dq}(space=)"   , svgStr, $"{dq} xmlns:$1");
-			svgStr = svgStr.Replace($@"<tspan x={dq}1{dq} dy={dq}1em{dq} xmlns:space={dq}preserve{dq}  ><", "<");
-			svgStr = svgStr.Replace($@"xml:space={dq}preserve{dq}", "");
-			svgStr = svgStr.Replace($@"xmlns:space={dq}preserve{dq}","");
+			svgStr = Regex.Replace(svgStr, $@"[^\s]*={dq}{dq}", "");
+			svgStr = Regex.Replace(svgStr, $@" *NS\d*:ns\d*:", "");
+			svgStr = Regex.Replace(svgStr, $@"NS[^>]*(/*)>", "$1>");
+			svgStr = Regex.Replace(svgStr, $@"{dq}(space=)", $"{dq} xmlns:$1");
+			svgStr = Regex.Replace(svgStr, $@"<tspan[^>]*><", "<");
+			svgStr = Regex.Replace(svgStr, $@" xml(ns)*:[^ ]*", "");
+			svgStr = Regex.Replace(svgStr, $@"\s+", " ");
+			svgStr = svgStr.Replace("/* */", "");
 			//Clipboard.SetText(svgStr);
 			return svgStr;
 		}
@@ -187,11 +213,11 @@ mermaid.initialize({flowchart:{htmlLabels:false}});
 			File.WriteAllText($"{saveDir.FullName}/{fileName}", getSvg());
 		}
 
-		private static Form getPreviewWindow(string md, string fileName="preview.html") {
-			var html =  defhtml
+		private static Form getPreviewWindow(string md, string fileName = "preview.html") {
+			var html = defhtml
 				.Replace("{MMSTR}", md)
-			//.Replace("{MMCSS}", mmcss)
-			//.Replace("{MMJS}", mmjs)
+				//.Replace("{MMCSS}", mmcss)
+				//.Replace("{MMJS}", mmjs)
 				.Replace("{MMOP}", md.StartsWith("graph") ? mmieop : "")
 				.Trim();
 
