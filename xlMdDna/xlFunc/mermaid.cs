@@ -38,11 +38,14 @@
 {MMSTR}
 </div>
 <script>
-mermaid.initialize({flowchart:{htmlLabels:false}})
+{MMOP}
 </script>
 </body>
 </html>
 ";
+		static string mmieop { get { return @"
+mermaid.initialize({flowchart:{htmlLabels:false}});
+"; } }
 
 		[ExcelFunction(Name = "Mermaid", Description = "About xlMdDna")]
 		public static string Mermaid(dynamic[,] args) {
@@ -51,10 +54,11 @@ mermaid.initialize({flowchart:{htmlLabels:false}})
 			var buf = getArgsString(args);
 			md = string.Join("\n", buf).Replace("\u00A0", " ");
 			try {
-				getPreviewWindow(md);
+				getPreviewWindow(md.Trim());
 			}
 			catch (Exception ex) {
 				Clipboard.SetText($"Err: mermaidFail\n{ex.Message}");
+				return "NG";
 			}
 
 			return "OK";
@@ -65,6 +69,7 @@ mermaid.initialize({flowchart:{htmlLabels:false}})
 				if (!saveDir.Exists)
 					saveDir.Create();
 				wind = new Form();
+				wind.Text = "press {Enter} to Save";
 				wind.Width = width;
 				wind.Height = height;
 				wind.AutoScaleMode = AutoScaleMode.Font;
@@ -84,7 +89,6 @@ mermaid.initialize({flowchart:{htmlLabels:false}})
 						var y = 0;// (int)(web.Document.Window.Size.Height/2*.5);
 						web.Document.Body.Style = "zoom:350%;";
 						web.Document.Window.ScrollTo(x, y);
-						//getPreviewWindow(md);
 					}
 				};
 
@@ -168,18 +172,14 @@ mermaid.initialize({flowchart:{htmlLabels:false}})
 			var pv = web.Document.GetElementById("preview");
 			var svgStr = pv.InnerHtml;
 			var dq = "\"";
-			var rgx0 = new Regex($@"[^\s]*={dq}{dq}");
-			var rgx1 = new Regex($@" *NS\d*:ns\d*:");
-			var rgx2 = new Regex($@"NS[^>]*(/*)>");
-			var rgx3 = new Regex($@"{dq}(space=)");
-			svgStr = rgx0.Replace(svgStr, "");
-			svgStr = rgx1.Replace(svgStr, "");
-			svgStr = rgx2.Replace(svgStr, "$1>");
-			svgStr = rgx3.Replace(svgStr, $"{dq} xmlns:$1");
+			svgStr = Regex.Replace($@"[^\s]*={dq}{dq}", svgStr, "");
+			svgStr = Regex.Replace($@" *NS\d*:ns\d*:" , svgStr, "");
+			svgStr = Regex.Replace($@"NS[^>]*(/*)>"   , svgStr, "$1>");
+			svgStr = Regex.Replace($@"{dq}(space=)"   , svgStr, $"{dq} xmlns:$1");
 			svgStr = svgStr.Replace($@"<tspan x={dq}1{dq} dy={dq}1em{dq} xmlns:space={dq}preserve{dq}  ><", "<");
 			svgStr = svgStr.Replace($@"xml:space={dq}preserve{dq}", "");
 			svgStr = svgStr.Replace($@"xmlns:space={dq}preserve{dq}","");
-			Clipboard.SetText(svgStr);
+			//Clipboard.SetText(svgStr);
 			return svgStr;
 		}
 
@@ -187,13 +187,18 @@ mermaid.initialize({flowchart:{htmlLabels:false}})
 			File.WriteAllText($"{saveDir.FullName}/{fileName}", getSvg());
 		}
 
-		private static Form getPreviewWindow(string md) {
-			web.DocumentText =
-				defhtml
-					.Replace("{MMSTR}", md)
+		private static Form getPreviewWindow(string md, string fileName="preview.html") {
+			var html =  defhtml
+				.Replace("{MMSTR}", md)
 			//.Replace("{MMCSS}", mmcss)
 			//.Replace("{MMJS}", mmjs)
-			;
+				.Replace("{MMOP}", md.StartsWith("graph") ? mmieop : "")
+				.Trim();
+
+			var path = $@"{saveDir}\{fileName}";
+			File.WriteAllText(path, html);
+			//web.Navigate(path);
+			web.DocumentText = html;
 			return wind;
 		}
 	}
