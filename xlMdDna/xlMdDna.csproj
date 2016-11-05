@@ -62,15 +62,26 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="App.cs" />
+    <Compile Include="xlFunc\markdown.cs" />
     <Compile Include="xlFunc\mermaid.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
   <ItemGroup>
+    <None Include="content\def.html" />
+    <None Include="content\mermaid.min.js" />
     <Content Include="xlMdDna-AddIn.dna">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
+    <None Include="content\jquery.min.js" />
+    <None Include="content\mermaid.css" />
+    <None Include="content\mermaid.dark.css" />
+    <None Include="content\mermaid.js" />
+    <None Include="content\mermaidAPI.js" />
+    <None Include="content\markdown-it.js" />
+    <None Include="content\marked.js" />
     <None Include="packages.config" />
   </ItemGroup>
+  <ItemGroup />
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <PropertyGroup>
     <PostBuildEvent>xcopy "$(SolutionDir)\packages\ExcelDna.AddIn.0.33.9\tools\ExcelDna.xll" "$(TargetDir)xlMdDna-AddIn.xll*" /C /Y
