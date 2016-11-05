@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang='ja'>
+
+<head>
+	<meta charset='utf-8'>
+	<meta http-equiv='X-UA-Compatible' content='IE=edge,chrome=1'>
+	<meta name='viewport' content='width=device-width, initial-scale=1'>
+	<script src='https://cdnjs.cloudflare.com/ajax/libs/jquery/3.1.1/jquery.min.js'></script>
+	<script src='https://cdnjs.cloudflare.com/ajax/libs/marked/0.3.6/marked.min.js'></script>
+	<script src='https://cdnjs.cloudflare.com/ajax/libs/mermaid/6.0.0/mermaid.min.js'></script>
+	<link rel='stylesheet' type='text/css' href='https://cdnjs.cloudflare.com/ajax/libs/mermaid/6.0.0/mermaid.min.css'>
+	<style type='text/css'> <!--
+		body { width: 100%; background-color: #ffffff;}
+		table { border-collapse: collapse;  margin: 10px}
+		th { padding: 6px; text-align: left; vertical-align: top; color: #333; background-color: #eee; border: 1px solid #b9b9b9; }
+		td { padding: 6px; background-color: #fff; border: 1px solid #b9b9b9; }
+		.mermaid{ margin-left: 10px; margin-right: auto; }
+	--> </style>
+</head>
+
+<body style='background-color: #ffffff;'>
+	<div id='md'>
+# A
+
+A | B | C
+- | - | -
+a | b | c
+
+## B 
+```mermaid
+graph TB
+	1[xll開く] -->1a
+	1a[mermaid書く] -->2
+	2[fx=mermaid :セル参照:] -- ブラウザが表示される -->3
+	3[サイズ調整] -->3a
+	3a{気に入る} -- おｋ> d^-^b\n俺グッジョブ -->4
+	3a -- やり直し -->1a
+	4(ブラウザ閉じる) -->5
+	5[完成画像が自動で貼られる] -->6
+	6[おまけでマイドキュメントにpreview.svg/pngが保存される]
+	99[xllをアドインに登録すればExcel起動するだけ]
+	3 -- めんどくさい --> 3
+```
+## C
+## D
+	</div>
+	<div id='preview'>
+	</div>
+<script>
+var renderer = new marked.Renderer();
+renderer.code = function (code, language) {
+    if(language == 'mermaid')
+        return '<pre class="mermaid" align="left">'+code+'</pre>';
+    else
+        return '<pre><code>'+code+'</code></pre>';
+};
+
+$(document).ready(function(){
+	var md = $('#md').text()
+	$('#md').empty()
+	var html = marked(md ,{ renderer: renderer } );
+	$('#preview').html(html);
+	mermaid.init();
+});
+
+mermaid.initialize({flowchart:{htmlLabels:false}});
+mermaid.init();
+</script>
+</body>
+
+</html>
