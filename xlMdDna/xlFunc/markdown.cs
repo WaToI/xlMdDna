@@ -47,6 +47,7 @@
 	{MDJS}
 	{MMJS}
 	{MMCS}
+	{MYCS}
 </head>
 
 <body>
@@ -106,7 +107,7 @@ $(document).ready(function(){
 			get { return @"mermaid.initialize({flowchart:{htmlLabels:false}});"; }
 		}
 
-		private static string MYCSS {
+		private static string MYCS {
 			get {
 				return @"
 	<style type='text/css'> <!--
@@ -194,17 +195,16 @@ $(document).ready(function(){
 				.Replace("{MDJS}", MDJS)
 				.Replace("{MMJS}", MMJS)
 				.Replace("{MMCS}", MMCS)
+				.Replace("{MYCS}", MYCS)
 				.Replace("{MMIE}", MMIE)
 				.Replace("{MDSTR}", md)
 				.Trim();
 
 			var path = $@"{saveDir}\{fileName}";
 			File.WriteAllText(path, html);
-			//web.Navigate(path);
-			//web.DocumentText = html;
 			try {
 				var psi = new ProcessStartInfo("explorer.exe", path);
-				var p = Process.Start(psi);
+				var pr = Process.Start(psi);
 			}
 			catch (Exception) {
 			}
